@@ -1,21 +1,22 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { useRef, useState } from 'react';
-import { ArrowDownToLine, ArrowUpRight, BriefcaseBusiness, Building2, Check, CreditCard, Leaf, Mail, Phone, RotateCcw, ShieldCheck, Sparkles, UserRound } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { ArrowDownToLine, ArrowUpRight, BriefcaseBusiness, Building2, Check, CreditCard, ImagePlus, Leaf, Mail, Phone, RotateCcw, ShieldCheck, Sparkles, Trash2, UserRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
+import { CardPreview } from '@/components/card-studio/card-preview';
+import { contrastRatio, fontOptions, initialDetails, limits, loadFont, paletteColors, palettes, readLogo, saveBlob, serializeCard, svgToPng, type CardColors, type CardFont, type PaletteKey } from '@/lib/card-design';
 
 export const Route = createFileRoute('/')({
   head: () => ({ meta: [
     { title: 'Forma — Business Card Studio' },
-    { name: 'description', content: 'Create a personal business card in natural coral and sage palettes. Edit your details, see your card live, and download it.' },
+    { name: 'description', content: 'Design a personal business card with custom fonts, colors, and your company logo. Download a matching PNG or editable SVG.' },
     { property: 'og:title', content: 'Forma — Business Card Studio' },
-    { property: 'og:description', content: 'A little card. A lasting impression. Design and download your own business card with Forma.' },
+    { property: 'og:description', content: 'Your details, your colors, your logo. Create and download a naturally personal business card.' },
     { property: 'og:type', content: 'website' },
     { name: 'twitter:card', content: 'summary_large_image' },
-  ] }),
-  component: CardStudio,
+  ] }), component: CardStudio,
 });
-const initialDetails = { name: 'Alex Morgan', position: 'Product Designer', company: 'Studio North', phone: '+1 (415) 555-0123', email: 'alex@studionorth.co' };
 const fields = [
   { key: 'name', label: 'Full name', icon: UserRound, placeholder: 'Your full name', type: 'text' },
   { key: 'position', label: 'Position', icon: BriefcaseBusiness, placeholder: 'Your job title', type: 'text' },
@@ -23,70 +24,73 @@ const fields = [
   { key: 'phone', label: 'Phone number', icon: Phone, placeholder: 'Your phone number', type: 'tel' },
   { key: 'email', label: 'Email address', icon: Mail, placeholder: 'you@company.com', type: 'email' },
 ] as const;
-const themes = [{ key: 'sage', name: 'Soft sage' }, { key: 'coral', name: 'Warm coral' }, { key: 'paper', name: 'Natural linen' }, { key: 'forest', name: 'Deep forest' }] as const;
-type Theme = typeof themes[number]['key'];
-function CardArtwork() {
-  return <svg className="card-art" viewBox="0 0 210 300" preserveAspectRatio="none" aria-hidden="true"><path className="art-light" d="M110 0H210V300H156C87 240 120 187 168 142C214 99 135 67 110 0Z"/><path className="art-coral" d="M175 0H210V157C116 154 85 105 107 59C120 32 151 16 175 0Z"/><path className="art-forest" d="M210 206V300H64C58 253 98 220 137 214C167 210 188 212 210 206Z"/></svg>;
-}
-function CompanyMark() { return <svg className="company-mark" viewBox="0 0 20 20" aria-hidden="true"><path fill="currentColor" d="M1 14V6h4l5 8V6h4v8h-4L5 6v8zm14 0V6h4v8z"/></svg>; }
+function CardArtwork() { return <svg className="card-art" viewBox="0 0 210 300" preserveAspectRatio="none" aria-hidden="true"><path className="art-light" d="M110 0H210V300H156C87 240 120 187 168 142C214 99 135 67 110 0Z"/><path className="art-coral" d="M175 0H210V157C116 154 85 105 107 59C120 32 151 16 175 0Z"/><path className="art-forest" d="M210 206V300H64C58 253 98 220 137 214C167 210 188 212 210 206Z"/></svg>; }
 function CardStudio() {
   const [details, setDetails] = useState(initialDetails);
-  const [theme, setTheme] = useState<Theme>('sage');
+  const [theme, setTheme] = useState<PaletteKey | 'custom'>('sage');
+  const [colors, setColors] = useState<CardColors | null>(null);
+  const [font, setFont] = useState<CardFont>('sora');
+  const [fontReady, setFontReady] = useState(0);
+  const [fontLoading, setFontLoading] = useState(true);
+  const [fontError, setFontError] = useState('');
+  const [logo, setLogo] = useState('');
+  const [logoName, setLogoName] = useState('');
+  const [logoError, setLogoError] = useState('');
+  const [logoLoading, setLogoLoading] = useState(false);
+  const [artwork, setArtwork] = useState(true);
+  const [format, setFormat] = useState<'png' | 'svg'>('png');
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState('');
-  const cardRef = useRef<HTMLDivElement>(null);
+  const [downloaded, setDownloaded] = useState(false);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const uploadVersion = useRef(0);
+  useEffect(() => { setColors(paletteColors('sage')); }, []);
+  useEffect(() => {
+    let active = true; setFontLoading(true); setFontError('');
+    loadFont(font).then(() => { if (active) { setFontReady(v => v + 1); setFontLoading(false); } }).catch(error => { if (active) { setFontLoading(false); setFontError(error instanceof Error ? error.message : 'The font could not be loaded.'); } });
+    return () => { active = false; };
+  }, [font]);
+  function resetDesign() { setTheme('sage'); setColors(paletteColors('sage')); setFont('sora'); setArtwork(true); setDownloadError(''); setDownloaded(false); }
+  function removeLogo() { uploadVersion.current += 1; setLogo(''); setLogoName(''); setLogoError(''); setLogoLoading(false); if (fileRef.current) fileRef.current.value = ''; }
+  async function uploadLogo(file: File | undefined) {
+    if (!file) return;
+    const version = ++uploadVersion.current;
+    setLogoLoading(true); setLogoError('');
+    try { const data = await readLogo(file); if (version === uploadVersion.current) { setLogo(data); setLogoName(file.name); } }
+    catch (error) { if (version === uploadVersion.current) setLogoError(error instanceof Error ? error.message : 'The logo could not be opened.'); }
+    finally { if (version === uploadVersion.current) { setLogoLoading(false); if (fileRef.current) fileRef.current.value = ''; } }
+  }
   async function downloadCard() {
-    if (!cardRef.current) return;
-    setDownloading(true); setDownloadError('');
+    const svg = svgRef.current; if (!svg) return;
+    setDownloading(true); setDownloadError(''); setDownloaded(false);
     try {
-      await document.fonts.ready;
-      const canvas = document.createElement('canvas'); canvas.width = 1400; canvas.height = 800;
-      const ctx = canvas.getContext('2d'); if (!ctx) throw new Error('Image export is not available in this browser.');
-      const css = getComputedStyle(document.documentElement);
-      const color = (token: string) => css.getPropertyValue(token).trim();
-      const bg = theme === 'coral' ? '--coral' : theme === 'paper' ? '--paper' : theme === 'forest' ? '--primary' : '--sage';
-      const ink = theme === 'forest' ? '--paper' : theme === 'coral' ? '--foreground' : '--primary';
-      ctx.fillStyle = color(bg); ctx.fillRect(0, 0, 1400, 800);
-      ctx.save(); ctx.translate(840, 0); ctx.scale(560 / 210, 800 / 300);
-      ctx.fillStyle = color('--art-light'); ctx.fill(new Path2D('M110 0H210V300H156C87 240 120 187 168 142C214 99 135 67 110 0Z'));
-      ctx.fillStyle = color(theme === 'coral' ? '--sage' : '--coral'); ctx.fill(new Path2D('M175 0H210V157C116 154 85 105 107 59C120 32 151 16 175 0Z'));
-      ctx.fillStyle = color(theme === 'forest' ? '--sage' : '--primary'); ctx.fill(new Path2D('M210 206V300H64C58 253 98 220 137 214C167 210 188 212 210 206Z')); ctx.restore();
-      ctx.fillStyle = color(ink);
-      const fitText = (text: string, size: number, family: string, x: number, y: number, width: number) => {
-        let current = size; ctx.font = `500 ${current}px ${family}`;
-        while (ctx.measureText(text).width > width && current > 12) { current -= 1; ctx.font = `500 ${current}px ${family}`; }
-        ctx.fillText(text, x, y);
-      };
-      ctx.save(); ctx.translate(112, 92); ctx.scale(2.7, 2.7); ctx.fill(new Path2D('M1 14V6h4l5 8V6h4v8h-4L5 6v8zm14 0V6h4v8z')); ctx.restore();
-      fitText(details.company, 32, 'Sora', 174, 128, 650);
-      fitText(details.name, 67, 'Sora', 112, 421, 810);
-      fitText(details.position, 30, 'Manrope', 112, 467, 790);
-      fitText(details.phone, 27, 'Manrope', 149, 601, 830);
-      fitText(details.email, 27, 'Manrope', 149, 646, 830);
-      ctx.strokeStyle = color(ink); ctx.lineWidth = 2.5;
-      ctx.strokeRect(113, 627, 23, 16); ctx.beginPath(); ctx.moveTo(113, 627); ctx.lineTo(124.5, 636); ctx.lineTo(136, 627); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(115, 578); ctx.bezierCurveTo(110, 590, 124, 604, 137, 601); ctx.lineTo(132, 594); ctx.lineTo(127, 596); ctx.lineTo(120, 589); ctx.lineTo(122, 584); ctx.closePath(); ctx.stroke();
-      const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error('Your card could not be exported.')), 'image/png'));
-      const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = `${details.name.trim().replace(/[^a-z0-9]+/gi, '-').toLowerCase() || 'forma'}-business-card.png`; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+      const source = await serializeCard(svg, font);
+      const blob = format === 'svg' ? new Blob([source], { type: 'image/svg+xml;charset=utf-8' }) : await svgToPng(source);
+      const filename = details.name.trim().replace(/[^a-z0-9]+/gi, '-').toLowerCase() || 'forma';
+      saveBlob(blob, `${filename}-business-card.${format}`); setDownloaded(true);
     } catch (error) { setDownloadError(error instanceof Error ? error.message : 'Your card could not be exported. Please try again.'); }
     finally { setDownloading(false); }
   }
+  const lowContrast = colors ? contrastRatio(colors.background, colors.text) < 4.5 : false;
   return <div>
     <header className="studio-header"><a href="/" className="brand" aria-label="Forma home"><span className="brand-icon"><CreditCard size={21}/></span><span>forma<span className="brand-dot">.</span></span></a><div className="header-note">Small details. Lasting impressions.<ArrowUpRight size={14}/></div></header>
-    <main className="workspace">
-      <div className="page-heading"><div><h1>Business Card Studio</h1><p>A little card. A whole lot of you.</p></div><Sparkles className="text-primary" size={23} strokeWidth={1.4}/></div>
+    <main className="workspace"><div className="page-heading"><div><h1>Business Card Studio</h1><p>A little card. A whole lot of you.</p></div><Sparkles className="text-primary" size={23} strokeWidth={1.4}/></div>
       <div className="studio-layout">
         <section className="editor" aria-labelledby="details-heading"><div className="editor-heading"><span className="step">01</span><h2 id="details-heading">Make it yours</h2></div>
-          <form className="form-fields" onSubmit={event => event.preventDefault()}>{fields.map(({ key, label, icon: Icon, placeholder, type }) => <div key={key}><label className="field-label" htmlFor={key}>{label}</label><div className="input-wrap"><Icon strokeWidth={1.5}/><Input id={key} type={type} value={details[key]} placeholder={placeholder} onChange={event => setDetails(previous => ({ ...previous, [key]: event.target.value }))}/></div></div>)}</form>
-          <div className="editor-bottom"><Button variant="ghost" className="w-full text-muted-foreground text-xs" onClick={() => { setDetails({ name:'', position:'', company:'', phone:'', email:'' }); }}><RotateCcw size={13}/>Clear details</Button></div>
+          <form className="form-fields" onSubmit={event => event.preventDefault()}>{fields.map(({ key, label, icon: Icon, placeholder, type }) => <div key={key}><div className="field-label-row"><label className="field-label" htmlFor={key}>{label}</label><span className="field-count" aria-label={`${label} character count`}>{details[key].length}/{limits[key]}</span></div><div className="input-wrap"><Icon strokeWidth={1.5}/><Input id={key} type={type} maxLength={limits[key]} value={details[key]} placeholder={placeholder} onChange={event => { setDetails(previous => ({ ...previous, [key]: event.target.value.slice(0, limits[key]) })); setDownloaded(false); }}/></div></div>)}</form>
+          <div className="logo-controls"><label className="field-label" htmlFor="company-logo">Company logo</label><input ref={fileRef} id="company-logo" type="file" className="sr-only" accept="image/png,image/jpeg,image/webp" onChange={event => void uploadLogo(event.target.files?.[0])}/><div className="logo-upload-row">{logo && <img className="logo-thumbnail" src={logo} alt="Uploaded company logo"/>}<Button variant="outline" size="sm" onClick={() => fileRef.current?.click()} disabled={logoLoading}><ImagePlus/>{logoLoading ? 'Opening logo…' : logo ? 'Replace logo' : 'Upload logo'}</Button>{logo && <Button variant="ghost" size="icon" aria-label="Remove company logo" title="Remove company logo" onClick={removeLogo}><Trash2/></Button>}</div><p className="upload-note">{logoName || 'PNG, JPG or WebP · up to 5 MB'}</p>{logoError && <p className="control-error" role="alert">{logoError}</p>}</div>
+          <div className="editor-bottom"><Button variant="ghost" className="w-full text-muted-foreground text-xs" onClick={() => { setDetails({ name:'', position:'', company:'', phone:'', email:'' }); setDownloaded(false); }}><RotateCcw size={13}/>Clear details</Button></div>
         </section>
         <section aria-label="Card preview and design"><div className="preview-heading"><span className="section-label">Your card, coming to life</span><span className="live-badge">Live preview</span></div>
-          <div className="preview-stage"><div className={`business-card theme-${theme}`} ref={cardRef} aria-label="Business card"><CardArtwork/><div className="card-content"><div className="company-line"><CompanyMark/><span>{details.company || 'Company name'}</span></div><div className="card-person"><h2>{details.name || 'Your name'}</h2><p>{details.position || 'Your position'}</p></div><div className="card-contact">{details.phone && <div><Phone/><span>{details.phone}</span></div>}{details.email && <div><Mail/><span>{details.email}</span></div>}</div></div></div><div className="card-dimensions"><CreditCard size={12}/>3.5 × 2 in<span>·</span>Standard business card</div></div>
-          <div className="appearance"><div className="appearance-heading"><h2>A color that feels like you</h2><span>Four natural palettes</span></div><div className="theme-grid">{themes.map(item => <div className="theme-option" key={item.key}><Button variant="ghost" className="theme-button" aria-label={`Use ${item.name} palette`} aria-pressed={theme === item.key} onClick={() => setTheme(item.key)}><div className={`mini-card theme-${item.key}`}><CardArtwork/><span className="mini-text">Studio North</span><span className="mini-lines"/></div></Button><div className="theme-name"><span>{item.name}</span>{theme === item.key && <Check/>}</div></div>)}</div></div>
-          <div className="export-row"><span className="export-note"><ShieldCheck size={14}/>Your details stay with you.</span><Button className="download-button" onClick={downloadCard} disabled={downloading}><ArrowDownToLine/>{downloading ? 'Preparing card…' : 'Download card'}</Button></div>{downloadError && <p role="alert" className="text-destructive text-xs mt-3">{downloadError}</p>}
+          <div className="preview-stage"><CardPreview ref={svgRef} details={details} font={font} colors={colors} logo={logo} artwork={artwork} fontReady={fontReady}/><div className="card-dimensions"><CreditCard size={12}/>3.5 × 2 in<span>·</span>Standard business card</div></div>
+          <div className="appearance"><div className="appearance-heading"><h2>A color that feels like you</h2><Button variant="ghost" size="sm" aria-label="Reset design" title="Reset font, colors and artwork" onClick={resetDesign}><RotateCcw/>Reset design</Button></div><div className="theme-grid">{palettes.map(item => <div className="theme-option" key={item.key}><Button variant="ghost" className="theme-button" aria-label={`Use ${item.name} palette`} aria-pressed={theme === item.key} onClick={() => { setTheme(item.key); setColors(paletteColors(item.key)); setDownloaded(false); }}><div className={`mini-card theme-${item.key}`}><CardArtwork/><span className="mini-text">Studio North</span><span className="mini-lines"/></div></Button><div className="theme-name"><span>{item.name}</span>{theme === item.key && <Check/>}</div></div>)}</div></div>
+          <div className="customization"><div className="font-control"><label className="field-label" htmlFor="card-font">Card font</label><select id="card-font" className="studio-select" value={font} onChange={event => { setFont(event.target.value as CardFont); setDownloaded(false); }}>{fontOptions.map(item => <option value={item.key} key={item.key}>{item.name}</option>)}</select></div><fieldset className="color-controls"><legend className="field-label">Custom colors</legend>{(['background','text','accent'] as const).map(key => <label className="color-control" key={key}><input type="color" aria-label={`${key.charAt(0).toUpperCase() + key.slice(1)} color`} value={colors?.[key] ?? '#000000'} disabled={!colors} onChange={event => { const value = event.target.value; setColors(previous => previous ? { ...previous, [key]: value } : previous); setTheme('custom'); setDownloaded(false); }}/><span>{key === 'text' ? 'Text' : key === 'accent' ? 'Accent' : 'Background'}</span></label>)}</fieldset></div>
+          <div className="artwork-control"><label htmlFor="card-artwork">Organic artwork</label><Switch id="card-artwork" checked={artwork} onCheckedChange={value => { setArtwork(value); setDownloaded(false); }}/></div>
+          {lowContrast && <p className="contrast-warning" role="status">Low text contrast. Choose a darker text color or a lighter background.</p>}{fontError && <p className="control-error" role="alert">{fontError}</p>}
+          <div className="export-row"><span className="export-note"><ShieldCheck size={14}/>Your details stay with you.</span><div className="export-actions"><div className="format-toggle" role="group" aria-label="Export format"><Button size="sm" variant={format === 'png' ? 'secondary' : 'ghost'} aria-pressed={format === 'png'} onClick={() => { setFormat('png'); setDownloaded(false); }}>PNG</Button><Button size="sm" variant={format === 'svg' ? 'secondary' : 'ghost'} aria-pressed={format === 'svg'} onClick={() => { setFormat('svg'); setDownloaded(false); }}>SVG</Button></div><Button className="download-button" onClick={downloadCard} disabled={downloading || logoLoading || fontLoading || Boolean(fontError)}>{downloaded ? <Check/> : <ArrowDownToLine/>}{downloading ? 'Preparing…' : fontLoading ? 'Loading font…' : 'Download card'}</Button></div></div>{downloadError && <p role="alert" className="control-error">{downloadError}</p>}
         </section>
-      </div>
-      <footer className="studio-footer"><span>Made for your next introduction.</span><span className="footer-signature"><Leaf/>A little more personal.</span></footer>
+      </div><footer className="studio-footer"><span>Made for your next introduction.</span><span className="footer-signature"><Leaf/>A little more personal.</span></footer>
     </main>
   </div>;
 }
