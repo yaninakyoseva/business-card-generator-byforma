@@ -52,11 +52,11 @@ function CardStudio() {
       ctx.fillStyle = color(theme === 'coral' ? '--sage' : '--coral'); ctx.fill(new Path2D('M175 0H210V157C116 154 85 105 107 59C120 32 151 16 175 0Z'));
       ctx.fillStyle = color(theme === 'forest' ? '--sage' : '--primary'); ctx.fill(new Path2D('M210 206V300H64C58 253 98 220 137 214C167 210 188 212 210 206Z')); ctx.restore();
       ctx.fillStyle = color(ink);
-      function fitText(text: string, size: number, family: string, x: number, y: number, width: number) {
+      const fitText = (text: string, size: number, family: string, x: number, y: number, width: number) => {
         let current = size; ctx.font = `500 ${current}px ${family}`;
         while (ctx.measureText(text).width > width && current > 12) { current -= 1; ctx.font = `500 ${current}px ${family}`; }
         ctx.fillText(text, x, y);
-      }
+      };
       ctx.save(); ctx.translate(112, 92); ctx.scale(2.7, 2.7); ctx.fill(new Path2D('M1 14V6h4l5 8V6h4v8h-4L5 6v8zm14 0V6h4v8z')); ctx.restore();
       fitText(details.company, 32, 'Sora', 174, 128, 650);
       fitText(details.name, 67, 'Sora', 112, 421, 810);
