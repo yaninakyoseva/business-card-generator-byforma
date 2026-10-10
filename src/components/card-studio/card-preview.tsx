@@ -10,11 +10,11 @@ export const CardPreview = forwardRef<SVGSVGElement, Props>(function CardPreview
   });
   useEffect(() => {
     setLayout({
-      name: fitCardText(details.name, family, 380, 34, 18, 2),
-      company: fitCardText(details.company, family, 300, 16, 11, 2),
-      position: fitCardText(details.position, family, 390, 15, 11, 2),
-      phone: fitCardText(details.phone, family, 370, 14, 11, 1),
-      email: fitCardText(details.email, family, 370, 14, 11, 2),
+      name: fitCardText(details.name, family, 380, 34, 10, 2),
+      company: fitCardText(details.company, family, 300, 16, 9, 3),
+      position: fitCardText(details.position, family, 390, 15, 8, 2),
+      phone: fitCardText(details.phone, family, 370, 14, 8, 1),
+      email: fitCardText(details.email, family, 370, 14, 8, 3),
     });
   }, [details, family, fontReady]);
   // Palette token references are SSR-safe; client colors become explicit for standalone exports.
